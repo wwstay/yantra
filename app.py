@@ -16,8 +16,8 @@ app = Flask(__name__)
 
 # intercom config
 INTERCOM_ACCESS_TOKEN = 'intercom_access_token'
-INTERCOM_BOT_USER_ID = 1268655
-INTERCOM_ASSIGNEE_USER_ID = 1268678
+INTERCOM_BOT_USER_ID = 1268655  # currently set to WWStay Engineering user id
+INTERCOM_ASSIGNEE_USER_ID = 1268678  # currently set to Avinash Kondeti user id
 
 # api.ai config
 APIAI_TOKEN = 'apiai_token'
