@@ -1,0 +1,4 @@
+apiai==1.2.3
+Flask==0.12.2
+zappa==0.42.2
+beautifulsoup4==4.6.0
