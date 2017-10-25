@@ -204,13 +204,6 @@ def intercom_reply_webhook(event=None, context=None):
 
         if conversation_complete(ai_response):
             logger.info("Conversation complete.")
-            if is_hotel_booking_action(ai_response):
-                reply_message = "Thank you for your request. We will get back to you with quotations."
-                # try:
-                #     create_request(ai_response)
-                # except Exception, e:
-                #     traceback.print_exc()
-                #     pass
             send_intercom_message(reply_message, conversation_id)
             assign_intercom_conversation(conversation_id)
             logger.info("Sent reply message: " + reply_message)
