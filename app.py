@@ -140,7 +140,14 @@ def conversation_complete(ai_response):
     """
     check whether conversation with api.ai is complete.
     """
-    return ((ai_response['result']['action'] == 'hotel.book') and not ai_response['result']['actionIncomplete'])
+    return (not ai_response['result']['actionIncomplete'])
+
+
+def is_hotel_booking_action(ai_response):
+    """
+    check whether action is hotel booking.
+    """
+    return (ai_response['result']['action'] == 'hotel.book')
 
 
 def create_request(ai_response):
@@ -196,13 +203,14 @@ def intercom_reply_webhook(event=None, context=None):
             return "OK", 200
 
         if conversation_complete(ai_response):
-            logger.info("Conversation complete. Creating request...")
-            reply_message = "Thank you for your request. We will get back to you with quotations."
-            try:
-                create_request(ai_response)
-            except Exception, e:
-                traceback.print_exc()
-                pass
+            logger.info("Conversation complete.")
+            if is_hotel_booking_action(ai_response):
+                reply_message = "Thank you for your request. We will get back to you with quotations."
+                # try:
+                #     create_request(ai_response)
+                # except Exception, e:
+                #     traceback.print_exc()
+                #     pass
             send_intercom_message(reply_message, conversation_id)
             assign_intercom_conversation(conversation_id)
             logger.info("Sent reply message: " + reply_message)
@@ -210,8 +218,8 @@ def intercom_reply_webhook(event=None, context=None):
 
         send_intercom_message(reply_message, conversation_id)
         logger.info("Sent reply message: " + reply_message)
-
         return "OK", 200
+
     except Exception, e:
         traceback.print_exc()
         return "OK", 200
