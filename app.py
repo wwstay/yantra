@@ -3,7 +3,7 @@ import logging
 import traceback
 import requests
 import datetime
-import apiai
+import dialogflow
 from bs4 import BeautifulSoup
 from flask import Flask, request, jsonify
 from intercom.client import Client
@@ -17,13 +17,23 @@ logger.setLevel(logging.DEBUG)
 app = Flask(__name__)
 
 # intercom config
-INTERCOM_ACCESS_TOKEN = 'intercom_access_token'
+# Dev
+INTERCOM_ACCESS_TOKEN = 'dG9rOjUwNTEzMjVhXzA2NmNfNDlhM19hZmE3X2ZmYzEwY2MwYWViMToxOjA='
 INTERCOM_BOT_USER_ID = 1268655  # currently set to WWStay Engineering user id
 INTERCOM_ASSIGNEE_USER_ID = 1268678  # currently set to Avinash Kondeti user id
+# Production
+# INTERCOM_ACCESS_TOKEN = 'dG9rOjk2N2JmZjA5X2NkYmFfNGE5Ml9iNDE1XzllNjMyZTFlYzg2MjoxOjA='
+# INTERCOM_BOT_USER_ID = 1391697  # currently set to Yantra user id
+# INTERCOM_ASSIGNEE_USER_ID = 1268679  # currently set to Sheeba's user id
 
-# api.ai config
-APIAI_TOKEN = 'apiai_token'
-APIAI_FALLBACK_INTENTS = ['fallback', 'hotel.book - fallback - yes']
+# dialogflow config
+# Dev
+DIALOGFLOW_PROJECT_NAME = 'hotel-booking-test'
+
+# Production
+# DIALOGFLOW_PROJECT_NAME = 'hotel-booking-1-e944b'
+
+DIALOGFLOW_FALLBACK_INTENTS = ['fallback', 'hotel.book - fallback - yes']
 
 # other config
 CREATE_REQUEST_ENDPOINT = "https://test.wwstay.com/app/booking/onlinerequest/add"
@@ -43,25 +53,24 @@ def clean_message(message_raw):
     return text
 
 
-def send_apiai_message(message, session_id):
+def send_dialogflow_message(message, session_id):
     """
-    send message to api.ai and get response
+    send message to dialogflow and get response
     """
-    ai = apiai.ApiAI(APIAI_TOKEN)
-    ai_request = ai.text_request()
-    ai_request.session_id = session_id
-    ai_request.query = message
-    ai_response_raw = ai_request.getresponse().read()
-    logging.info(ai_response_raw)
-    ai_response = json.loads(ai_response_raw)
-    return ai_response
+    c = dialogflow.SessionsClient()
+    s = c.session_path(DIALOGFLOW_PROJECT_NAME, session_id)
+    t = dialogflow.types.TextInput(text=message, language_code='en-US')
+    q = dialogflow.types.QueryInput(text=t)
+    r = c.detect_intent(session=s, query_input=q)
+    print r
+    return r
 
 
-def get_apiai_reply_message(ai_response):
+def get_dialogflow_reply_message(ai_response):
     """
-    parse api.ai response and get reply message
+    parse dialogflow response and get reply message
     """
-    reply_message = str(ai_response['result']['fulfillment']['speech'])
+    reply_message = str(ai_response.query_result.fulfillment_text)
     return reply_message
 
 
@@ -121,10 +130,10 @@ def should_fallback(ai_response):
     check whether conversation should fallback to team
     """
     try:
-        intent_name = ai_response['result']['metadata']['intentName']
-        if intent_name in APIAI_FALLBACK_INTENTS:
+        intent_name = ai_response.query_result.intent.display_name
+        if intent_name in DIALOGFLOW_FALLBACK_INTENTS:
             return True
-        if ai_response['result']['score'] < 0.4:
+        if ai_response.query_result.intent_detection_confidence < 0.4:
             return True
     except:
         return False
@@ -140,21 +149,28 @@ def initial_delivery(data):
 
 def conversation_complete(ai_response):
     """
-    check whether conversation with api.ai is complete.
+    check whether conversation with dialogflow is complete.
     """
-    return (not ai_response['result']['actionIncomplete'])
+    return ai_response.query_result.all_required_params_present
 
 
 def is_hotel_booking_action(ai_response):
     """
     check whether action is hotel booking.
     """
-    return (ai_response['result']['action'] == 'hotel.book')
+    return (ai_response.query_result.action == 'hotel.book')
+
+
+def is_welcome_action(ai_response):
+    """
+    check whether action is welcome.
+    """
+    return (ai_response.query_result.action == 'welcome' or ai_response.query_result.intent.display_name == 'welcome')
 
 
 def create_request(ai_response):
     """
-    create pa request using api.ai data.
+    create pa request using dialogflow data.
     """
     parameters = ai_response['result']['parameters']
     checkout_date = parameters['deadline'].get('checkout_date')
@@ -183,7 +199,7 @@ def intercom_reply_webhook(event=None, context=None):
     try:
         logger.info('function invoked intercom_reply_webhook()')
         data = request.get_json()
-        logger.info(data)
+        logger.info(json.dumps(data))
 
         if not initial_delivery(data):
             logger.info("Ignoring duplicate intercom ping")
@@ -195,8 +211,8 @@ def intercom_reply_webhook(event=None, context=None):
 
         message = parse_intercom_message(data)
         conversation_id = parse_intercom_conversation_id(data)
-        ai_response = send_apiai_message(message, conversation_id)
-        reply_message = get_apiai_reply_message(ai_response)
+        ai_response = send_dialogflow_message(message, conversation_id)
+        reply_message = get_dialogflow_reply_message(ai_response)
 
         if should_fallback(ai_response):
             send_intercom_message("Your request has been assigned to our agent. We will get back to you soon.", conversation_id)
@@ -204,7 +220,7 @@ def intercom_reply_webhook(event=None, context=None):
             logger.info("Assigned conversation to team")
             return "OK", 200
 
-        if conversation_complete(ai_response):
+        if conversation_complete(ai_response) and is_hotel_booking_action(ai_response):
             logger.info("Conversation complete.")
             send_intercom_message(reply_message, conversation_id)
             assign_intercom_conversation(conversation_id)

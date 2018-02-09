@@ -5,7 +5,10 @@
     "s3_bucket": "zappa-l5afbrft1",
     "aws_region": "ap-southeast-1",
     "http_methods": ["GET", "POST"],
-    "use_precompiled_packages": true
+    "use_precompiled_packages": true,
+    "environment_variables": {
+      "GOOGLE_APPLICATION_CREDENTIALS": "/var/task/config/dialogflow-dev.json"
+    }
   },
   "production": {
     "app_function": "app.app",
@@ -13,6 +16,9 @@
     "s3_bucket": "zappa-l5afbrft1",
     "aws_region": "ap-southeast-1",
     "http_methods": ["GET", "POST"],
-    "use_precompiled_packages": true
+    "use_precompiled_packages": true,
+    "environment_variables": {
+      "GOOGLE_APPLICATION_CREDENTIALS": "/var/task/config/dialogflow-prod.json"
+    }
   }
 }
