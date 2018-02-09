@@ -5,8 +5,10 @@ import requests
 import datetime
 import apiai
 from bs4 import BeautifulSoup
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from intercom.client import Client
+
+from alexa import Alexa
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -216,3 +218,14 @@ def intercom_reply_webhook(event=None, context=None):
     except Exception, e:
         traceback.print_exc()
         return "OK", 200
+
+
+@app.route("/alexa/", methods=['POST'])
+def alexa_reply_webhook(event=None, context=None):
+    logger.info('function invoked alexa_reply_webhook()')
+    data = request.get_json()
+    logger.info(json.dumps(data))
+    alx = Alexa()
+    return_data = alx.handler(data)
+    logger.info(return_data)
+    return jsonify(return_data), 200
