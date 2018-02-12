@@ -3,3 +3,6 @@ Flask==0.12.2
 zappa==0.42.2
 beautifulsoup4==4.6.0
 python-intercom==3.1.0
+six==1.10.0
+pyOpenSSL==17.5.0
+python-dateutil==2.6.0

@@ -241,7 +241,17 @@ def alexa_reply_webhook(event=None, context=None):
     logger.info('function invoked alexa_reply_webhook()')
     data = request.get_json()
     logger.info(json.dumps(data))
-    alx = Alexa()
-    return_data = alx.handler(data)
-    logger.info(return_data)
-    return jsonify(return_data), 200
+    try:
+        alx = Alexa()
+        alx.verify_request(request)
+
+        return_data = alx.handler(data)
+        logger.info(return_data)
+        return jsonify(return_data), 200
+    except Exception, e:
+        logger.error(e)
+        return "", 400
+
+
+# if __name__ == "__main__":
+#     app.run()

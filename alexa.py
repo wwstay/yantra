@@ -1,4 +1,11 @@
 from __future__ import print_function
+from six.moves.urllib.parse import urlparse
+from six.moves.urllib.request import urlopen
+import posixpath
+from OpenSSL import crypto
+import base64
+from datetime import datetime
+from dateutil.parser import parse
 
 
 class Alexa():
@@ -151,6 +158,59 @@ class Alexa():
         print("on_session_ended requestId=" + session_ended_request['requestId'] +
               ", sessionId=" + session['sessionId'])
         # add cleanup logic here
+
+    # request verifier helpers
+    def _validate_certificate_url(self, cert_url):
+        parsed_url = urlparse(cert_url)
+        if parsed_url.scheme == 'https':
+            if parsed_url.hostname == "s3.amazonaws.com":
+                if posixpath.normpath(parsed_url.path).startswith("/echo.api/"):
+                    return
+        raise ValueError('Invalid Certificate URL')
+
+    def _validate_certificate(self, cert):
+        not_after = cert.get_notAfter().decode('utf-8')
+        not_after = datetime.strptime(not_after, '%Y%m%d%H%M%SZ')
+        if datetime.utcnow() >= not_after:
+            raise ValueError('Invalid Certificate. Certificate Expired.')
+        found = False
+        for i in range(0, cert.get_extension_count()):
+            extension = cert.get_extension(i)
+            short_name = extension.get_short_name().decode('utf-8')
+            value = str(extension)
+            if 'subjectAltName' == short_name and 'DNS:echo-api.amazon.com' == value:
+                    found = True
+                    break
+        if not found:
+            raise ValueError('Invalid Certificate.')
+
+    def _validate_signature(self, cert, signature, signed_data):
+        try:
+            signature = base64.b64decode(signature)
+            crypto.verify(cert, signature, signed_data, 'sha1')
+        except crypto.Error as e:
+            raise e
+
+    def _validate_timestamp(self, timestamp):
+        dt = datetime.utcnow() - timestamp.replace(tzinfo=None)
+        if abs(dt.total_seconds()) > 150:
+            raise ValueError("Timestamp verification failed")
+
+    def verify_request(self, request):
+        cert_url = request.headers['Signaturecertchainurl']
+        self._validate_certificate_url(cert_url)
+
+        cert_data = urlopen(cert_url).read()
+        cert = crypto.load_certificate(crypto.FILETYPE_PEM, cert_data)
+        self._validate_certificate(cert)
+
+        signature = request.headers['Signature']
+        self._validate_signature(cert, signature, request.data)
+
+        request_data = request.get_json()
+        raw_timestamp = request_data.get('request', {}).get('timestamp')
+        timestamp = parse(raw_timestamp)
+        self._validate_timestamp(timestamp)
 
     # --------------- Main handler ------------------
 
